@@ -64,7 +64,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------- HEADER --------------------
-st.markdown("<div class='gradient-box'><h2>💬 Twitter Sentiment Analyzer (3-Class)</h2></div>", unsafe_allow_html=True)
+st.markdown("<div class='gradient-box'><h2>💬 Twitter Sentiment Analyzer </h2></div>", unsafe_allow_html=True)
 
 # -------------------- INPUT SECTION --------------------
 st.subheader("Enter Tweets")
