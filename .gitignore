@@ -1,0 +1,16 @@
+# Ignore large datasets and model files
+training.1600000.processed.noemoticon.csv
+training_balanced.csv
+training_balanced.xls
+neutral_tweets.csv
+neutral_tweets.xls
+sentiment_model_3class.pkl
+
+# Ignore Python cache and temp files
+__pycache__/
+*.pyc
+*.pkl
+*.xls
+*.xlsx
+.DS_Store
+.env
