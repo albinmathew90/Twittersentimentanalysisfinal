@@ -1,414 +1,219 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": 6,
-   "id": "2bced804-4798-45b8-b730-63804aca58de",
-   "metadata": {},
-   "outputs": [
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "=================================================================\n",
-      "🚀 SENTIMENT140 (BALANCED) — 3-CLASS MODEL TRAINING\n",
-      "=================================================================\n",
-      "📂 Loading dataset...\n",
-      "✅ Loaded dataset: 2,400,000 tweets\n",
-      "📊 Shape: (2400000, 6)\n",
-      "\n",
-      "📈 Raw label distribution:\n",
-      "target\n",
-      "0    800000\n",
-      "2    800000\n",
-      "4    800000\n",
-      "Name: count, dtype: int64\n",
-      "\n",
-      "🧹 Preprocessing data...\n",
-      "🔄 Mapping sentiment labels (0, 2, 4 → 0, 1, 2)...\n",
-      "🗑️ Removed 0 invalid or missing rows\n",
-      "🧼 Cleaning tweets (may take a few minutes)...\n"
-     ]
-    },
-    {
-     "name": "stderr",
-     "output_type": "stream",
-     "text": [
-      "100%|████████████████████████████████████████████████████████████████████| 2400000/2400000 [00:22<00:00, 105036.68it/s]\n"
-     ]
-    },
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "🗑️ Removed 2,881 empty tweets after cleaning\n",
-      "🗑️ Removed 799,926 duplicates (kept neutrals)\n",
-      "\n",
-      "✅ Preprocessing complete!\n",
-      "📊 Final samples: 1,597,193\n",
-      "📊 Label distribution:\n",
-      "target\n",
-      "2    798642\n",
-      "0    798477\n",
-      "1        74\n",
-      "Name: count, dtype: int64\n",
-      "📊 Current label distribution:\n",
-      "target\n",
-      "2    798642\n",
-      "0    798477\n",
-      "1        74\n",
-      "Name: count, dtype: int64\n",
-      "⚙️ Oversampling neutral tweets to balance dataset...\n",
-      "✅ New label distribution:\n",
-      "target\n",
-      "2    798642\n",
-      "1    798608\n",
-      "0    798477\n",
-      "Name: count, dtype: int64\n",
-      "\n",
-      "🔢 Creating TF-IDF features...\n",
-      "📊 Training samples: 1,916,581\n",
-      "📊 Test samples: 479,146\n",
-      "🔄 Fitting TF-IDF vectorizer...\n",
-      "✅ TF-IDF Feature shape: (1916581, 20000)\n",
-      "\n",
-      "🤖 Training Logistic Regression (multiclass)...\n"
-     ]
-    },
-    {
-     "name": "stderr",
-     "output_type": "stream",
-     "text": [
-      "[Parallel(n_jobs=-1)]: Using backend LokyBackend with 12 concurrent workers.\n"
-     ]
-    },
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "✅ Model training complete!\n",
-      "\n",
-      "📊 Evaluating model...\n",
-      "\n",
-      "🎯 Test Accuracy: 85.32%\n",
-      "\n",
-      "📋 Classification Report:\n",
-      "              precision    recall  f1-score   support\n",
-      "\n",
-      "    Negative     0.7957    0.7556    0.7751    159695\n",
-      "     Neutral     0.9966    1.0000    0.9983    159722\n",
-      "    Positive     0.7678    0.8038    0.7854    159729\n",
-      "\n",
-      "    accuracy                         0.8532    479146\n",
-      "   macro avg     0.8534    0.8531    0.8529    479146\n",
-      "weighted avg     0.8534    0.8532    0.8529    479146\n",
-      "\n",
-      "🔢 Confusion Matrix:\n",
-      "[[120667    190  38838]\n",
-      " [     0 159722      0]\n",
-      " [ 30985    349 128395]]\n",
-      "\n",
-      "💾 Saving model to: sentiment_model_3class.pkl\n",
-      "✅ Model saved successfully!\n",
-      "📦 Model size: 1.44 MB\n",
-      "\n",
-      "=================================================================\n",
-      "✅ PIPELINE COMPLETE — FINAL ACCURACY: 85.32%\n",
-      "💾 Model saved as: sentiment_model_3class.pkl\n",
-      "=================================================================\n"
-     ]
-    }
-   ],
-   "source": [
-    "\"\"\"\n",
-    "=========================================================\n",
-    "SENTIMENT140 - 3 CLASS SENTIMENT MODEL TRAINING (FINAL)\n",
-    "=========================================================\n",
-    "\n",
-    "Classes:\n",
-    "- 0 → Negative 😡\n",
-    "- 2 → Neutral 😐\n",
-    "- 4 → Positive 😊\n",
-    "\n",
-    "Dataset:\n",
-    "- training_balanced.csv  (merged Sentiment140 + neutral_tweets.csv)\n",
-    "\n",
-    "Output:\n",
-    "- sentiment_model_3class.pkl  (includes model + vectorizer)\n",
-    "\"\"\"\n",
-    "\n",
-    "import pandas as pd\n",
-    "import numpy as np\n",
-    "import re\n",
-    "import string\n",
-    "import joblib\n",
-    "from tqdm import tqdm\n",
-    "from sklearn.model_selection import train_test_split\n",
-    "from sklearn.feature_extraction.text import TfidfVectorizer\n",
-    "from sklearn.linear_model import LogisticRegression\n",
-    "from sklearn.metrics import accuracy_score, classification_report, confusion_matrix\n",
-    "import warnings\n",
-    "warnings.filterwarnings(\"ignore\")\n",
-    "\n",
-    "# Enable tqdm progress bars\n",
-    "tqdm.pandas()\n",
-    "\n",
-    "# ==========================================================\n",
-    "# SENTIMENT MODEL TRAINER CLASS\n",
-    "# ==========================================================\n",
-    "class SentimentModelTrainer:\n",
-    "    def __init__(self, dataset_path, model_output_path=\"sentiment_model_3class.pkl\"):\n",
-    "        self.dataset_path = dataset_path\n",
-    "        self.model_output_path = model_output_path\n",
-    "        self.vectorizer = None\n",
-    "        self.model = None\n",
-    "        self.df = None\n",
-    "\n",
-    "    # -------------------- LOAD DATA --------------------\n",
-    "    def load_data(self):\n",
-    "        print(\"📂 Loading dataset...\")\n",
-    "\n",
-    "        columns = [\"target\", \"id\", \"date\", \"flag\", \"user\", \"text\"]\n",
-    "        try:\n",
-    "            self.df = pd.read_csv(\n",
-    "                self.dataset_path,\n",
-    "                encoding=\"latin-1\",\n",
-    "                names=columns,\n",
-    "                header=None\n",
-    "            )\n",
-    "            print(f\"✅ Loaded dataset: {len(self.df):,} tweets\")\n",
-    "            print(f\"📊 Shape: {self.df.shape}\")\n",
-    "            print(f\"\\n📈 Raw label distribution:\\n{self.df['target'].value_counts()}\")\n",
-    "        except FileNotFoundError:\n",
-    "            raise FileNotFoundError(f\"❌ File not found: {self.dataset_path}\")\n",
-    "        except Exception as e:\n",
-    "            raise Exception(f\"Error loading dataset: {str(e)}\")\n",
-    "\n",
-    "    # -------------------- CLEAN TEXT --------------------\n",
-    "    def clean_text(self, text):\n",
-    "        \"\"\"Clean tweet text (light cleaning to preserve neutral content).\"\"\"\n",
-    "        if not isinstance(text, str):\n",
-    "            return \"\"\n",
-    "        text = text.lower()\n",
-    "        text = re.sub(r\"http\\S+|www\\S+\", \"\", text)       # Remove URLs\n",
-    "        text = re.sub(r\"@\\w+\", \"\", text)                 # Remove mentions\n",
-    "        text = re.sub(r\"#\", \"\", text)                    # Keep hashtag words\n",
-    "        text = re.sub(r\"[^\\x00-\\x7F]+\", \" \", text)       # Remove non-ASCII\n",
-    "        text = re.sub(r\"\\s+\", \" \", text).strip()         # Normalize spaces\n",
-    "        return text\n",
-    "\n",
-    "    # -------------------- PREPROCESS --------------------\n",
-    "    def preprocess_data(self):\n",
-    "        print(\"\\n🧹 Preprocessing data...\")\n",
-    "        self.df = self.df[[\"target\", \"text\"]]\n",
-    "\n",
-    "        print(\"🔄 Mapping sentiment labels (0, 2, 4 → 0, 1, 2)...\")\n",
-    "\n",
-    "        # Convert labels to numeric (fixes mixed type issue)\n",
-    "        self.df[\"target\"] = pd.to_numeric(self.df[\"target\"], errors=\"coerce\")\n",
-    "\n",
-    "        # Map Sentiment140 labels to our internal 3-class scheme\n",
-    "        self.df[\"target\"] = self.df[\"target\"].map({0: 0, 2: 1, 4: 2})\n",
-    "\n",
-    "        before = len(self.df)\n",
-    "        self.df.dropna(subset=[\"target\", \"text\"], inplace=True)\n",
-    "        after = len(self.df)\n",
-    "        print(f\"🗑️ Removed {before - after:,} invalid or missing rows\")\n",
-    "\n",
-    "        print(\"🧼 Cleaning tweets (may take a few minutes)...\")\n",
-    "        self.df[\"cleaned_text\"] = self.df[\"text\"].astype(str).progress_apply(self.clean_text)\n",
-    "\n",
-    "        before = len(self.df)\n",
-    "        self.df = self.df[self.df[\"cleaned_text\"].str.len() > 0]\n",
-    "        print(f\"🗑️ Removed {before - len(self.df):,} empty tweets after cleaning\")\n",
-    "\n",
-    "        # ⚠️ Keep neutrals even if similar\n",
-    "        before = len(self.df)\n",
-    "        self.df = self.df[~((self.df[\"target\"] == 1) & (self.df.duplicated(subset=[\"cleaned_text\"])))]\n",
-    "        print(f\"🗑️ Removed {before - len(self.df):,} duplicates (kept neutrals)\")\n",
-    "\n",
-    "        print(\"\\n✅ Preprocessing complete!\")\n",
-    "        print(f\"📊 Final samples: {len(self.df):,}\")\n",
-    "        print(f\"📊 Label distribution:\\n{self.df['target'].value_counts()}\")\n",
-    "\n",
-    "       # Balance dataset safely (only if imbalance > 1.5x)\n",
-    "        counts = self.df[\"target\"].value_counts()\n",
-    "        print(f\"📊 Current label distribution:\\n{counts}\")\n",
-    "\n",
-    "        max_count = counts.max()\n",
-    "        min_count = counts.min()\n",
-    "\n",
-    "        if min_count / max_count < 0.5:\n",
-    "    # Not enough neutrals — oversample them instead\n",
-    "            print(\"⚙️ Oversampling neutral tweets to balance dataset...\")\n",
-    "            neutral_df = self.df[self.df[\"target\"] == 1]\n",
-    "            repeats = int(max_count / len(neutral_df))\n",
-    "            neutral_df = pd.concat([neutral_df] * repeats, ignore_index=True)\n",
-    "            self.df = pd.concat([\n",
-    "                self.df[self.df[\"target\"] != 1],\n",
-    "                neutral_df\n",
-    "            ], ignore_index=True)\n",
-    "            self.df = self.df.sample(frac=1, random_state=42).reset_index(drop=True)\n",
-    "        else:\n",
-    "            print(\"⚖️ Dataset already fairly balanced.\")\n",
-    "\n",
-    "        print(f\"✅ New label distribution:\\n{self.df['target'].value_counts()}\")\n",
-    "        \n",
-    "\n",
-    "    # -------------------- FEATURE CREATION --------------------\n",
-    "    def create_features(self):\n",
-    "        print(\"\\n🔢 Creating TF-IDF features...\")\n",
-    "\n",
-    "        X = self.df[\"cleaned_text\"]\n",
-    "        y = self.df[\"target\"]\n",
-    "\n",
-    "        X_train, X_test, y_train, y_test = train_test_split(\n",
-    "            X, y, test_size=0.2, random_state=42, stratify=y\n",
-    "        )\n",
-    "\n",
-    "        print(f\"📊 Training samples: {len(X_train):,}\")\n",
-    "        print(f\"📊 Test samples: {len(X_test):,}\")\n",
-    "\n",
-    "        self.vectorizer = TfidfVectorizer(\n",
-    "            max_features=20000,\n",
-    "            ngram_range=(1, 2),\n",
-    "            min_df=5,\n",
-    "            max_df=0.85,\n",
-    "            stop_words=\"english\"\n",
-    "        )\n",
-    "\n",
-    "        print(\"🔄 Fitting TF-IDF vectorizer...\")\n",
-    "        X_train_tfidf = self.vectorizer.fit_transform(X_train)\n",
-    "        X_test_tfidf = self.vectorizer.transform(X_test)\n",
-    "\n",
-    "        print(f\"✅ TF-IDF Feature shape: {X_train_tfidf.shape}\")\n",
-    "        return X_train_tfidf, X_test_tfidf, y_train, y_test\n",
-    "\n",
-    "    # -------------------- TRAIN MODEL --------------------\n",
-    "    def train_model(self, X_train, y_train):\n",
-    "        print(\"\\n🤖 Training Logistic Regression (multiclass)...\")\n",
-    "        self.model = LogisticRegression(\n",
-    "            max_iter=1000,\n",
-    "            random_state=42,\n",
-    "            solver=\"lbfgs\",\n",
-    "            multi_class=\"multinomial\",\n",
-    "            n_jobs=-1,\n",
-    "            verbose=1\n",
-    "        )\n",
-    "        self.model.fit(X_train, y_train)\n",
-    "        print(\"✅ Model training complete!\")\n",
-    "\n",
-    "    # -------------------- EVALUATE --------------------\n",
-    "    def evaluate_model(self, X_test, y_test):\n",
-    "        print(\"\\n📊 Evaluating model...\")\n",
-    "        y_pred = self.model.predict(X_test)\n",
-    "        acc = accuracy_score(y_test, y_pred)\n",
-    "        print(f\"\\n🎯 Test Accuracy: {acc*100:.2f}%\")\n",
-    "\n",
-    "        print(\"\\n📋 Classification Report:\")\n",
-    "        print(\n",
-    "            classification_report(\n",
-    "                y_test,\n",
-    "                y_pred,\n",
-    "                labels=[0, 1, 2],\n",
-    "                target_names=[\"Negative\", \"Neutral\", \"Positive\"],\n",
-    "                digits=4,\n",
-    "                zero_division=0\n",
-    "            )\n",
-    "        )\n",
-    "\n",
-    "        print(\"🔢 Confusion Matrix:\")\n",
-    "        cm = confusion_matrix(y_test, y_pred, labels=[0, 1, 2])\n",
-    "        print(cm)\n",
-    "        return acc\n",
-    "\n",
-    "    # -------------------- SAVE MODEL --------------------\n",
-    "    def save_model(self):\n",
-    "        print(f\"\\n💾 Saving model to: {self.model_output_path}\")\n",
-    "        model_data = {\n",
-    "            \"model\": self.model,\n",
-    "            \"vectorizer\": self.vectorizer,\n",
-    "            \"feature_names\": self.vectorizer.get_feature_names_out()\n",
-    "        }\n",
-    "        joblib.dump(model_data, self.model_output_path)\n",
-    "        print(f\"✅ Model saved successfully!\")\n",
-    "\n",
-    "        import os\n",
-    "        size = os.path.getsize(self.model_output_path) / (1024 * 1024)\n",
-    "        print(f\"📦 Model size: {size:.2f} MB\")\n",
-    "\n",
-    "    # -------------------- RUN PIPELINE --------------------\n",
-    "    def run_pipeline(self):\n",
-    "        print(\"=\"*65)\n",
-    "        print(\"🚀 SENTIMENT140 (BALANCED) — 3-CLASS MODEL TRAINING\")\n",
-    "        print(\"=\"*65)\n",
-    "\n",
-    "        self.load_data()\n",
-    "        self.preprocess_data()\n",
-    "        X_train, X_test, y_train, y_test = self.create_features()\n",
-    "        self.train_model(X_train, y_train)\n",
-    "        acc = self.evaluate_model(X_test, y_test)\n",
-    "        self.save_model()\n",
-    "\n",
-    "        print(\"\\n\" + \"=\"*65)\n",
-    "        print(f\"✅ PIPELINE COMPLETE — FINAL ACCURACY: {acc*100:.2f}%\")\n",
-    "        print(f\"💾 Model saved as: {self.model_output_path}\")\n",
-    "        print(\"=\"*65)\n",
-    "\n",
-    "# ==========================================================\n",
-    "# MAIN FUNCTION\n",
-    "# ==========================================================\n",
-    "def main():\n",
-    "    DATASET_PATH = \"training_balanced.csv\"   # your merged dataset\n",
-    "    MODEL_OUTPUT_PATH = \"sentiment_model_3class.pkl\"\n",
-    "\n",
-    "    trainer = SentimentModelTrainer(DATASET_PATH, MODEL_OUTPUT_PATH)\n",
-    "    trainer.run_pipeline()\n",
-    "\n",
-    "if __name__ == \"__main__\":\n",
-    "    main()\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "id": "74008a3e-8d04-47e7-a651-ae03da2ae1e2",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "id": "4aa11e86-a40d-424b-b086-38e8a62c85e8",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "print(\"✅ Unique targets in dataset:\", self.df[\"target\"].unique())\n"
-   ]
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3 (ipykernel)",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.12.7"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
-}
+"""
+=========================================================
+SENTIMENT140 - 3 CLASS SENTIMENT MODEL TRAINING (FINAL)
+=========================================================
+
+Classes:
+- 0 → Negative 😡
+- 1 → Neutral 😐
+- 2 → Positive 😊
+
+Dataset:
+- training_balanced.csv (merged Sentiment140 + neutral_tweets.csv)
+
+Output:
+- sentiment_model_3class.pkl (includes model + vectorizer)
+"""
+
+import pandas as pd
+import numpy as np
+import re
+import string
+import joblib
+from tqdm import tqdm
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import warnings
+warnings.filterwarnings("ignore")
+
+# Enable tqdm progress bars
+tqdm.pandas()
+
+# ==========================================================
+# SENTIMENT MODEL TRAINER CLASS
+# ==========================================================
+class SentimentModelTrainer:
+    def __init__(self, dataset_path, model_output_path="sentiment_model_3class.pkl"):
+        self.dataset_path = dataset_path
+        self.model_output_path = model_output_path
+        self.vectorizer = None
+        self.model = None
+        self.df = None
+
+    # -------------------- LOAD DATA --------------------
+    def load_data(self):
+        print("📂 Loading dataset...")
+        columns = ["target", "id", "date", "flag", "user", "text"]
+
+        try:
+            self.df = pd.read_csv(
+                self.dataset_path,
+                encoding="latin-1",
+                names=columns,
+                header=None
+            )
+            print(f"✅ Loaded dataset: {len(self.df):,} tweets")
+            print(f"📊 Shape: {self.df.shape}")
+            print(f"\n📈 Raw label distribution:\n{self.df['target'].value_counts()}")
+        except FileNotFoundError:
+            raise FileNotFoundError(f"❌ File not found: {self.dataset_path}")
+        except Exception as e:
+            raise Exception(f"Error loading dataset: {str(e)}")
+
+    # -------------------- CLEAN TEXT --------------------
+    def clean_text(self, text):
+        """Clean tweet text (light cleaning to preserve neutral content)."""
+        if not isinstance(text, str):
+            return ""
+        text = text.lower()
+        text = re.sub(r"http\S+|www\S+", "", text)        # Remove URLs
+        text = re.sub(r"@\w+", "", text)                  # Remove mentions
+        text = re.sub(r"#", "", text)                     # Keep hashtag words
+        text = re.sub(r"[^\x00-\x7F]+", " ", text)        # Remove non-ASCII
+        text = re.sub(r"\s+", " ", text).strip()          # Normalize spaces
+        return text
+
+    # -------------------- PREPROCESS --------------------
+    def preprocess_data(self):
+        print("\n🧹 Preprocessing data...")
+        self.df = self.df[["target", "text"]]
+
+        print("🔄 Mapping sentiment labels (0, 2, 4 → 0, 1, 2)...")
+        self.df["target"] = pd.to_numeric(self.df["target"], errors="coerce")
+        self.df["target"] = self.df["target"].map({0: 0, 2: 1, 4: 2})
+
+        before = len(self.df)
+        self.df.dropna(subset=["target", "text"], inplace=True)
+        print(f"🗑️ Removed {before - len(self.df):,} invalid or missing rows")
+
+        print("🧼 Cleaning tweets (may take a few minutes)...")
+        self.df["cleaned_text"] = self.df["text"].astype(str).progress_apply(self.clean_text)
+
+        before = len(self.df)
+        self.df = self.df[self.df["cleaned_text"].str.len() > 0]
+        print(f"🗑️ Removed {before - len(self.df):,} empty tweets after cleaning")
+
+        before = len(self.df)
+        self.df = self.df[~((self.df["target"] == 1) & (self.df.duplicated(subset=["cleaned_text"])))]
+        print(f"🗑️ Removed {before - len(self.df):,} duplicates (kept neutrals)")
+
+        print(f"\n📊 Label distribution:\n{self.df['target'].value_counts()}")
+        counts = self.df["target"].value_counts()
+
+        max_count = counts.max()
+        min_count = counts.min()
+
+        if min_count / max_count < 0.5:
+            print("⚙️ Oversampling neutral tweets to balance dataset...")
+            neutral_df = self.df[self.df["target"] == 1]
+            repeats = int(max_count / len(neutral_df))
+            neutral_df = pd.concat([neutral_df] * repeats, ignore_index=True)
+            self.df = pd.concat([
+                self.df[self.df["target"] != 1],
+                neutral_df
+            ], ignore_index=True)
+            self.df = self.df.sample(frac=1, random_state=42).reset_index(drop=True)
+        else:
+            print("⚖️ Dataset already fairly balanced.")
+
+        print(f"✅ Final label distribution:\n{self.df['target'].value_counts()}")
+
+    # -------------------- FEATURE CREATION --------------------
+    def create_features(self):
+        print("\n🔢 Creating TF-IDF features...")
+        X = self.df["cleaned_text"]
+        y = self.df["target"]
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y
+        )
+
+        print(f"📊 Training samples: {len(X_train):,}")
+        print(f"📊 Test samples: {len(X_test):,}")
+
+        self.vectorizer = TfidfVectorizer(
+            max_features=20000,
+            ngram_range=(1, 2),
+            min_df=5,
+            max_df=0.85,
+            stop_words="english"
+        )
+
+        print("🔄 Fitting TF-IDF vectorizer...")
+        X_train_tfidf = self.vectorizer.fit_transform(X_train)
+        X_test_tfidf = self.vectorizer.transform(X_test)
+
+        print(f"✅ TF-IDF Feature shape: {X_train_tfidf.shape}")
+        return X_train_tfidf, X_test_tfidf, y_train, y_test
+
+    # -------------------- TRAIN MODEL --------------------
+    def train_model(self, X_train, y_train):
+        print("\n🤖 Training Logistic Regression (multiclass)...")
+        self.model = LogisticRegression(
+            max_iter=1000,
+            random_state=42,
+            solver="lbfgs",
+            multi_class="multinomial",
+            n_jobs=-1
+        )
+        self.model.fit(X_train, y_train)
+        print("✅ Model training complete!")
+
+    # -------------------- EVALUATE --------------------
+    def evaluate_model(self, X_test, y_test):
+        print("\n📊 Evaluating model...")
+        y_pred = self.model.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        print(f"\n🎯 Test Accuracy: {acc*100:.2f}%\n")
+        print(classification_report(
+            y_test, y_pred,
+            labels=[0, 1, 2],
+            target_names=["Negative", "Neutral", "Positive"],
+            digits=4,
+            zero_division=0
+        ))
+        return acc
+
+    # -------------------- SAVE MODEL --------------------
+    def save_model(self):
+        print(f"\n💾 Saving model to: {self.model_output_path}")
+        model_data = {
+            "model": self.model,
+            "vectorizer": self.vectorizer,
+            "feature_names": self.vectorizer.get_feature_names_out()
+        }
+        joblib.dump(model_data, self.model_output_path)
+        print("✅ Model saved successfully!")
+
+    # -------------------- RUN PIPELINE --------------------
+    def run_pipeline(self):
+        print("="*65)
+        print("🚀 SENTIMENT140 (BALANCED) — 3-CLASS MODEL TRAINING")
+        print("="*65)
+
+        self.load_data()
+        self.preprocess_data()
+        X_train, X_test, y_train, y_test = self.create_features()
+        self.train_model(X_train, y_train)
+        acc = self.evaluate_model(X_test, y_test)
+        self.save_model()
+
+        print("\n" + "="*65)
+        print(f"✅ PIPELINE COMPLETE — FINAL ACCURACY: {acc*100:.2f}%")
+        print(f"💾 Model saved as: {self.model_output_path}")
+        print("="*65)
+
+# ==========================================================
+# MAIN FUNCTION
+# ==========================================================
+def main():
+    DATASET_PATH = "training_balanced.csv"  # Your merged dataset
+    MODEL_OUTPUT_PATH = "sentiment_model_3class.pkl"
+
+    trainer = SentimentModelTrainer(DATASET_PATH, MODEL_OUTPUT_PATH)
+    trainer.run_pipeline()
+
+if __name__ == "__main__":
+    main()
