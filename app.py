@@ -5,7 +5,6 @@ import re
 import time
 import joblib
 
-# -------------------- PAGE CONFIG --------------------
 st.set_page_config(
     page_title="Twitter Sentiment Analyzer",
     page_icon="💬",
@@ -17,12 +16,12 @@ try:
     model_data = joblib.load("sentiment_model_3class.pkl")
     vectorizer = model_data["vectorizer"]
     clf = model_data["model"]
-    st.success("✅ Model loaded successfully!")
+    st.success(" Model loaded successfully!")
 except FileNotFoundError:
-    st.error("❌ Model file not found. Please ensure 'sentiment_model_3class.pkl' exists.")
+    st.error("Model file not found. Please ensure 'sentiment_model_3class.pkl' exists.")
     st.stop()
 except Exception as e:
-    st.error(f"⚠️ Error loading model: {e}")
+    st.error(f" Error loading model: {e}")
     st.stop()
 
 # -------------------- SESSION STATE --------------------
@@ -116,7 +115,7 @@ explanations = {
 # -------------------- ANALYSIS --------------------
 if analyze_btn:
     if st.session_state.tweet_input.strip() == "":
-        st.warning("⚠️ Please enter at least one tweet to analyze.")
+        st.warning(" Please enter at least one tweet to analyze.")
     else:
         tweets = st.session_state.tweet_input.strip().split("\n")
         data = []
@@ -147,7 +146,7 @@ if analyze_btn:
             df = pd.DataFrame(data)
 
             # -------------------- RESULTS SUMMARY --------------------
-            st.markdown("<div class='gradient-box'><h3>📊 Analysis Results</h3></div>", unsafe_allow_html=True)
+            st.markdown("<div class='gradient-box'><h3> Analysis Results</h3></div>", unsafe_allow_html=True)
             total = len(df)
             pos = df[df["Sentiment"] == "Positive"].shape[0]
             neg = df[df["Sentiment"] == "Negative"].shape[0]
@@ -159,7 +158,7 @@ if analyze_btn:
             col3.metric("😡 Negative", f"{neg} Tweets", f"{(neg/total)*100:.1f}%")
 
             # -------------------- CHARTS --------------------
-            st.markdown("<div class='gradient-box'><h3>📈 Sentiment Charts</h3></div>", unsafe_allow_html=True)
+            st.markdown("<div class='gradient-box'><h3> Sentiment Charts</h3></div>", unsafe_allow_html=True)
             col_chart1, col_chart2 = st.columns(2)
 
             sentiment_counts = df["Sentiment"].value_counts().reset_index()
@@ -204,7 +203,7 @@ if analyze_btn:
             col_chart2.plotly_chart(conf_fig, use_container_width=True)
 
             # -------------------- DETAILED RESULTS --------------------
-            st.markdown("<div class='gradient-box'><h3>🧾 Detailed Tweet Analysis</h3></div>", unsafe_allow_html=True)
+            st.markdown("<div class='gradient-box'><h3> Detailed Tweet Analysis</h3></div>", unsafe_allow_html=True)
             st.markdown("---")
 
             for i, row in df.iterrows():
